@@ -48,32 +48,32 @@ class Protocol(object):
                 message = port.read()
             except EOFError:
                 break
-            self.handle(port, message)
+            response = self.handle(port, message)
+            port.write(response)
 
     def handle(self, port, message):
         """Handle incoming message."""
         if not (isinstance(message, Atom)
                 or isinstance(message, tuple) and len(message) > 0):
-            response = Atom("error"), Atom("badarg")
+            return Atom("error"), Atom("badarg")
+
+        if isinstance(message, Atom):
+            name = message
+            args = ()
         else:
-            if isinstance(message, Atom):
-                name = message
-                args = ()
-            else:
-                name = message[0]
-                args = message[1:]
-            if not isinstance(name, Atom):
-                response = Atom("error"), Atom("badarg")
-            else:
-                handler = getattr(self, "handle_%s" % name, None)
-                if handler is None:
-                    response = Atom("error"), Atom("undef")
-                else:
-                    try:
-                        response = handler(*args)
-                    except:
-                        response = self._handle_error(sys.exc_info())
-        port.write(response)
+            name = message[0]
+            args = message[1:]
+        if not isinstance(name, Atom):
+            return Atom("error"), Atom("badarg")
+
+        handler = getattr(self, "handle_%s" % name, None)
+        if handler is None:
+            return Atom("error"), Atom("undef")
+        try:
+            response = handler(*args)
+        except:
+            response = self._handle_error(sys.exc_info())
+        return response
 
     def _handle_error(self, exception):
         t, val, tb = exception
